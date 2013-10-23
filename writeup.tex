@@ -1,0 +1,116 @@
+%% LyX 2.0.2 created this file.  For more info, see http://www.lyx.org/.
+%% Do not edit unless you really know what you are doing.
+\documentclass{article}
+\usepackage[latin9]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[unicode=true,pdfusetitle,
+ bookmarks=true,bookmarksnumbered=false,bookmarksopen=false,
+ breaklinks=false,pdfborder={0 0 1},backref=section,colorlinks=false]
+ {hyperref}
+\usepackage{breakurl}
+
+\makeatletter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% User specified LaTeX commands.
+% ---- ETD Document Class and Useful Packages ---- %
+
+\usepackage{subfigure}\usepackage{epsfig}\usepackage{amsfonts}\usepackage{bigints}\usepackage{amsthm}\usepackage{algorithmic}\usepackage{algorithm}\usepackage{caption}\usepackage{fullpage}
+
+%% Use these commands to set biographic information for the title page:
+\title{Switchboard Spoken Term Detection Experiments}
+\author{Mark Stoehr}
+\date{\today}
+
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+\makeatother
+
+\begin{document}
+We run an experiment on shift invariant EM.
+
+\[
+X\in\{0,1\}^{N_{examples}\times N_{time}\times N_{features}}
+\]
+ so that $X_{i}\in\{0,1\}^{N_{time}\times N_{features}}$ for $0\leq i\leq N_{examples}-1$
+and for each datum we have a latent variable $\tau_{i}$ which indicates
+the shifted starting point. We have a fixed window $W$ which is a
+set of time-feature pairs $(t,f)$ and we denote
+\[
+\{(t+\tau,f)\mid(t,f)\in W\}=\tau+W
+\]
+ and we write the log likelihood conditioned on knowing the shift
+$\tau_{i}$ for example $i$ as
+\begin{align*}
+\mathbb{P}(X_{i}\mid\tau_{i}=\tau,\{p(t,f)\}_{(t,f)\in W},p_{bgd}) & =\sum_{(t,f)\in W}X_{i}(t+\tau,f)\log p(t,f)+(1-X_{i}(t+\tau,f))\log(1-p(t,f))\\
+ & +\sum_{(t,f)\not\in W}X_{i}(t+\tau,f)\log p_{bgd}(f)+(1-X_{i}(t+\tau,f))\log(1-p_{bgd}(f))
+\end{align*}
+and then we can also have a distribution on $\tau$ which will be
+written $\eta_{i}(\tau)$ for the possible values of $\tau$. This
+means we can write the full likelihood as
+\[
+P(X_{i}\mid\tau_{i}=\tau,\{p(t,f)\}_{(t,f)\in W},p_{bgd})\eta(\tau)
+\]
+which means the posterior distribution on $\tau_{i}$ is
+\[
+P(\tau_{i}=\tau\mid X_{i},p,p_{bgd},\eta)=\frac{P(X_{i}\mid\tau_{i}=\tau,p,p_{bgd})\eta(\tau)}{\sum_{\tau'}P(X_{i}\mid\tau_{i}=\tau',p,p_{bgd})\eta(\tau')}
+\]
+ and the maximization step to compute the new distribution is
+\[
+\eta^{(t+1)}(\tau)=\frac{1}{N_{examples}}\sum_{i=0}^{N_{examples}-1}P(\tau_{i}=\tau\mid X_{i},p^{(t)},p_{bgd}^{(t)},\eta^{(t)})
+\]
+ 
+\section{Test of the Algorithm on synthetic data}
+
+In this section we report the results of running the prior described algorithm
+on synthetic data.  We have a known template which has length \texttt{10} entries
+and it gives a product of Bernoullis distribution over the \texttt{10} entries
+each with \texttt{.95} mean probability.  The background probability is
+\texttt{.05} and holds for the rest of the vectors.
+
+The experimental setup is that we construct \texttt{100} training binary vectors
+each of length \texttt{15}.  For each training example $X_i$ a random start time
+$\tau_i$
+in $\{0,1,2,3,4\}$ is selected and then the entries $X_i(\tau_i:\tau_i+10)$ are
+modeled with the template probabilities and all other entries are modeled as background.
+
+\subsection{Experiment instructions}
+
+To run the experiment we use \texttt{src/generate\_training.py} with
+\texttt{main.config} having the parameters set as
+\begin{verbatim}
+cat << "EOF" > main.config
+[TRAINDATA]
+num_training=100
+template_length=10
+template_means=.95
+background_means=.05
+vector_length=15
+num_shifts=5
+random_seed=0
+
+[EMTRAINING]
+tolerance=1e-6
+
+EOF
+\end{verbatim}
+and this file is then fed into 
+\texttt{src/generate\_training.py} to give us
+\begin{verbatim}
+mkdir -p data
+src/generate_training.py -o data/generated -c main.config
+\end{verbatim}
+which produces two files which correspond to the
+data
+\begin{verbatim}
+data/generated_start_times.npy
+data/generated_X.npy
+\end{verbatim}
+having generated the training data we may then run
+the training algorithm
+\begin{verbatim}
+mkdir -p shift_only_exp
+src/bernoullishift_only_em.py -c main.config -i data/generated_X.npy -o shift_only_exp
+\end{verbatim}
+
+\end{document}
