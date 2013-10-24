@@ -90,7 +90,8 @@ num_shifts=5
 random_seed=0
 
 [EMTRAINING]
-tolerance=1e-6
+tolerance=1e-12
+
 
 EOF
 \end{verbatim}
@@ -110,7 +111,29 @@ having generated the training data we may then run
 the training algorithm
 \begin{verbatim}
 mkdir -p shift_only_exp
-src/bernoullishift_only_em.py -c main.config -i data/generated_X.npy -o shift_only_exp
+src/bernoullishiftonly_em.py -c main.config -i data/generated_X.npy -o shift_only_exp
 \end{verbatim}
+
+\subsection{Bernoulli Shift Only EM}
+
+When you run \texttt{src/bernoullishiftonly\_em.py} the assumption
+is that you have generated data and a configuration file as
+mentioned above.  Looking at the function file establish that 
+\texttt{shift\_probs} is non-negative and sums to one and is a uniform distribution, and the variable \texttt{posteriors} should 
+be initialized to have a uniform distribution.  We also have that 
+\texttt{bgd\_prob=.05} and the template \texttt{template} is a 
+one-dimensional array of length \texttt{10} where each entry
+is \texttt{.95}.
+
+The next section to get the background sums, \texttt{bgd\_sums}. The
+function used for this computation is \texttt{prep\_bgd\_sums}.
+We want to ensure that it has the appropriate behavior. To do this
+we hand compute the output. We check that 
+\begin{verbatim}
+np.abs(bgd_sums[0,-1] - bgd_sums[0,shift_id+template_length] -\
+   (0 if shift_id == 4 else (X[0]*np.log(bgd_prob/(1-bgd_prob)) + np.log(1-bgd_prob))[X.shape[1]-4+shift_id:].sum())) < 1e-6
+\end{verbatim}
+
+
 
 \end{document}
