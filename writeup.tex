@@ -82,36 +82,561 @@ To run the experiment we use \texttt{src/generate\_training.py} with
 cat << "EOF" > main.config
 [TRAINDATA]
 num_training=100
-template_length=10
-template_means=.95
-background_means=.05
-vector_length=15
-num_shifts=5
+template_length=20
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
 random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
 
 [EMTRAINING]
-tolerance=1e-12
-
-
+tolerance=1e-6
+num_shifts=9
+num_classes=2
+start_time=0
+template_length=20
+min_prob=.01
 EOF
 \end{verbatim}
 and this file is then fed into 
 \texttt{src/generate\_training.py} to give us
 \begin{verbatim}
 mkdir -p data
-src/generate_training.py -o data/generated -c main.config
+src/generate_training.py -o data/generated -c main.config --visualize_data data/X
 \end{verbatim}
 which produces two files which correspond to the
 data
 \begin{verbatim}
 data/generated_start_times.npy
 data/generated_X.npy
+data/generated_true_templates.npy
 \end{verbatim}
-having generated the training data we may then run
+and it will also visualize the generated data by 
+generating pictures of all the data points to files of
+the form
+\begin{verbatim}
+data/X_${i}.png
+\end{verbatim}
+where \texttt{i} ranges over all the indices of the data generated
+which is determined from the config file \texttt{main.config}
+under \texttt{[TRAINDATA]} under the setting 
+\texttt{num\_training} which is 100 in this case so
+the indices will range from 0 to 99.
+
+The file \texttt{data/generated\_true\_templates.npy}
+contains the true templates that generated the data. The parameters
+for them are all under the \texttt{[TRAINDATA]} section. 
+
+
+Having generated the training data we may then run
 the training algorithm
 \begin{verbatim}
 mkdir -p shift_only_exp
-src/bernoullishiftonly_em.py -c main.config -i data/generated_X.npy -o shift_only_exp
+src/bernoullishiftonly_em.py -c main.config -i data/generated_X.npy -o shift_only_exp/out_ --visualize_templates
+\end{verbatim}
+which outputs to the directory
+\texttt{shift\_only\_exp} the files
+\begin{verbatim}
+shift_only_exp/out_template.npy
+shift_only_exp/out_background.npy
+shift_only_exp/out_posteriors.npy
+shift_only_exp/out_shift_probs.npy
+\end{verbatim}
+
+\subsection{Multiple Templates}
+
+We now do our investigation with multiple templates.
+
+\subsubsection{Different Lengths}
+
+Another important experiment is to make the templates
+different lengths and see if the algorithm can find them. This 
+is run by 
+\begin{verbatim}
+cat << "EOF" > b_p_5c_9s.config
+[TRAINDATA]
+num_training=100
+template_lengths=(10,20)
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
+random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=9
+num_classes=5
+start_time=0
+template_length=29
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+EOF
+\end{verbatim}
+and we generate another that is going to be a baseline
+\begin{verbatim}
+cat << "EOF" > b_p_5c_9s.config
+[TRAINDATA]
+num_training=100
+template_lengths=(10,20)
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
+random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=9
+num_classes=5
+start_time=0
+template_length=29
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+EOF
+\end{verbatim}
+
+
+and then we generate the training data via
+\begin{verbatim}
+mkdir -p data
+src/generate_training.py -o data/generated -c main.config --visualize_data data/X
+\end{verbatim}
+and then we train with
+\begin{verbatim}
+mkdir -p shift_class_lengths_exp
+src/bernoullishiftonly_em.py -c main.config -i data/generated_X.npy -o shift_class_lengths_exp/out_
+\end{verbatim}
+
+
+\subsection{Experiment with p versus b}
+
+\subsubsection{Single Template with Shift}
+Here we investigate what happens if we have a single class
+with shift.  We compare it to the case where the template is short
+\begin{verbatim}
+cat << "EOF" > b_p_1c_3s_35l.config
+[TRAINDATA]
+num_training=100
+template_lengths=(10,20)
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
+random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=3
+num_classes=1
+start_time=0
+template_length=35
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+[INFERENCE]
+start_time=0
+num_shifts=3
+
+
+EOF
+\end{verbatim}
+and then we do five shifts
+\begin{verbatim}
+cat << "EOF" > b_p_1c_5s_33l.config
+[TRAINDATA]
+num_training=100
+template_lengths=(10,20)
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
+random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=5
+num_classes=1
+start_time=0
+template_length=33
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+[INFERENCE]
+start_time=0
+num_shifts=5
+
+
+EOF
+\end{verbatim}
+
+and we run the same experiment but with a single shift
+and where we have the start time put the shorter template
+in the middle
+\begin{verbatim}
+cat << "EOF" > b_p_1c_1s_35l.config
+[TRAINDATA]
+num_training=100
+template_lengths=(10,20)
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
+random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=1
+num_classes=1
+start_time=1
+template_length=35
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+[INFERENCE]
+start_time=1
+num_shifts=1
+
+
+EOF
+\end{verbatim}
+and then we do the same but with a longer template
+\begin{verbatim}
+cat << "EOF" > b_p_1c_1s_37l.config
+[TRAINDATA]
+num_training=100
+template_lengths=(10,20)
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
+random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=1
+num_classes=1
+start_time=0
+template_length=37
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+[INFERENCE]
+start_time=0
+num_shifts=1
+
+EOF
+\end{verbatim}
+
+and then we run the experiment to train them
+
+\begin{verbatim}
+for suff in 1c_1s_37l 1c_3s_35l 1c_5s_33l 1c_1s_35l ; do
+    src/bernoullishiftonly_em.py -c b_p_${suff}.config -i data/b.npy\
+        -o b_p_exp/out_b_${suff}_ --visualize_templates
+    src/bernoullishiftonly_em.py -c b_p_${suff}.config -i data/p_train.npy\
+        -o b_p_exp/out_p_${suff}_ --visualize_templates
+done
+\end{verbatim}
+and then we test these on some development data
+\begin{verbatim}
+for suff in 1c_1s_37l 1c_3s_35l 1c_5s_33l 1c_1s_35l ; do
+    echo $suff
+    src/bernoullishift_binary_classify.py -c b_p_${suff}.config \
+        --models b_p_exp/out_b_${suff}_templates.npy\
+                 b_p_exp/out_p_${suff}_templates.npy\
+        --data data/b_dev.npy data/p_dev.npy\
+        --out b_p_exp/b_p_${suff}_results_\
+        --bgds b_p_exp/out_b_${suff}_background.npy\
+               b_p_exp/out_p_${suff}_background.npy
+done
+\end{verbatim}
+\subsubsection{Multiple Templates}
+
+We create a variety of different template lengths
+with different numbers of mixture components and different
+numbers of shifts
+\begin{verbatim}
+for num_shifts in 1 3 5 7 ; do
+use_length=$(( 37 - $num_shifts + 1 ))
+for num_classes in 1 2 3 4 5 6 7 8 9 ; do
+echo $num_shifts $use_length $num_classes
+echo -e "[TRAINDATA]
+num_training=100
+template_lengths=(10,20)
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
+random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=${num_shifts}
+num_classes=${num_classes}
+start_time=0
+template_length=${use_length}
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+[INFERENCE]
+start_time=0
+num_shifts=${num_shifts}" > b_p_${num_classes}c_${num_shifts}s_${use_length}l.config
+
+done
+done
+
+\end{verbatim}
+We compare p versus b in this experiment.  The data we consider
+is contained in 
+\begin{verbatim}
+../../phoneclassification/data/local/data/b_train_examples.npy
+../../phoneclassification/data/local/data/p_train_examples.npy
+\end{verbatim}
+and we will train templates from these two and then see
+if the templates can help with learning and the SVM
+\begin{verbatim}
+mkdir -p b_p_exp/
+for num_shifts in 1 3 5 7 ; do
+use_length=$(( 37 - $num_shifts + 1 ))
+for num_classes in 2 3 4 5 6 7 8 9 ; do
+suff=${num_classes}c_${num_shifts}s_${use_length}l
+echo $suff
+echo 
+src/bernoullishiftonly_em.py -c b_p_${suff}.config -i data/b.npy -o b_p_exp/out_b_${suff}_ --visualize_templates
+src/bernoullishiftonly_em.py -c b_p_${suff}.config -i data/p_train.npy -o b_p_exp/out_p_${suff}_ --visualize_templates
+done
+done
+\end{verbatim}
+and then we test the performance of these different models
+on the dev set and compare it to running the support vector
+machine.
+
+
+To do this we first setup a test set that is drawn from the
+phone classification experiment
+\begin{verbatim}
+../../phoneclassification/data/local/data/b_dev_examples.npy
+../../phoneclassification/data/local/data/p_dev_examples.npy
+\end{verbatim}
+which are saved to
+\begin{verbatim}
+data/b_dev.npy
+data/p_dev.npy
+\end{verbatim}
+and we
+ run the commands
+\begin{verbatim}
+out_results_fl=b_p_exp/b_p_dev_results.txt
+rm -f $out_results_fl
+for num_shifts in 1 3 5 7 ; do
+use_length=$(( 37 - $num_shifts + 1 ))
+for num_classes in 1 2 3 4 5 6 7 8 9 ; do
+suff=${num_classes}c_${num_shifts}s_${use_length}l
+
+if [ -e b_p_exp/out_b_${suff}_templates.npy ] ; then
+echo $suff
+echo $suff `src/bernoullishift_binary_classify.py -c b_p_${suff}.config  --models b_p_exp/out_b_${suff}_templates.npy b_p_exp/out_p_${suff}_templates.npy --data data/b_dev.npy data/p_dev.npy --out b_p_exp/b_p_${suff}_results_ --bgds b_p_exp/out_b_${suff}_background.npy b_p_exp/out_p_${suff}_background.npy | awk '{ print $3 }'`  >> $out_results_fl
+fi
+done
+done
+\end{verbatim}
+and in doing this we find that shifts do not seem to help very
+much since the data is already well-centerd.  Its possible
+that it might help in other ways, though.
+
+\begin{verbatim}
+out_results_fl=b_p_exp/b_p_dev_results.txt
+rm -f $out_results_fl
+for num_shifts in 7 ; do
+use_length=$(( 37 - $num_shifts + 1 ))
+for num_classes in 1 2 3 4 5 6 7 8 9 ; do
+suff=${num_classes}c_${num_shifts}s_${use_length}l
+
+if [ -e b_p_exp/out_b_${suff}_templates.npy ] ; then
+echo $suff
+echo $suff `src/bernoullishift_binary_classify.py -c b_p_${suff}.config  --models b_p_exp/out_b_${suff}_templates.npy b_p_exp/out_p_${suff}_templates.npy --data data/b_dev.npy data/p_dev.npy --out b_p_exp/b_p_${suff}_results_ --bgds b_p_exp/out_b_${suff}_background.npy b_p_exp/out_p_${suff}_background.npy | awk '{ print $3 }'`  >> $out_results_fl
+fi
+done
+done
+\end{verbatim}
+and then we convert this results file into a graphic showing
+\begin{verbatim}
+src/results_to_graphics.py -i b_p_exp/b_p_dev_results.txt -o b_p_exp/b_p_dev_results
+\end{verbatim}
+
+\subsubsection{ Comparisons with respect to fixed lengths}
+
+In the above approach we are taking large quantities of context
+along with the data, one question is what happens if the shiftable
+template is the same length as the non-shiftable template.
+Another question is at what length does the performance begin
+to drop.
+
+Here we are considering classification performance where the
+length of the template is fixed.  However, we want the
+template to be centered over the utterance, and allowed to
+shift around the center.  At present we have data that is
+37 time units long, so a template with 1 shift is centered
+\begin{verbatim}
+
+for base_shifts in 1 3 5 7 9 ; do
+use_length=$(( 37 - $base_shifts + 1 ))
+tail_length=$(( (37 - $use_length)/2 ))
+for num_shifts in `seq 1 2 $base_shifts` ; do
+start_time=$(( tail_length - ( $num_shifts - 1)/2  ))
+for num_classes in 1 2 3 4 5 6 7 8 9 ; do
+echo $num_shifts $use_length $num_classes $start_time
+echo -e "[TRAINDATA]
+num_training=100
+template_lengths=(10,20)
+template_means=.9
+background_means=.2
+vector_length=40
+num_features=16
+num_shifts=9
+random_seed=0
+num_classes=2
+template_type='uniform'
+num_curves=4
+template_blur_sigma=.3
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=${num_shifts}
+num_classes=${num_classes}
+start_time=${start_time}
+template_length=${use_length}
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+[INFERENCE]
+start_time=${start_time}
+num_shifts=${num_shifts}" > b_p_${num_classes}c_${num_shifts}s_${use_length}l.config
+
+done
+done
+done
+
+\end{verbatim}
+and then we train all the models
+\begin{verbatim}
+for base_shifts in 1 3 5 7 9 ; do
+use_length=$(( 37 - $base_shifts + 1 ))
+tail_length=$(( (37 - $use_length)/2 ))
+for num_shifts in `seq 1 2 $base_shifts` ; do
+start_time=$(( tail_length - ( $num_shifts - 1)/2  ))
+for num_classes in 1 2 3 4 5 6 7 8 9 ; do
+echo $num_shifts $use_length $num_classes $start_time
+suff=${num_classes}c_${num_shifts}s_${use_length}l
+if [ ! -e b_p_exp/out_p_${suff}_likelihoods.npy ] ; then
+src/bernoullishiftonly_em.py -c  b_p_${suff}.config  -i data/b.npy -o b_p_exp/out_b_${suff}_ --visualize_templates
+src/bernoullishiftonly_em.py -c b_p_${suff}.config -i data/p_train.npy -o b_p_exp/out_p_${suff}_ --visualize_templates
+if [  -e b_p_exp/out_p_${suff}_likelihoods.npy ] ; then
+echo "Just saved out_p_${suff}_likelihoods.npy"
+fi
+fi
+done
+done
+done
+\end{verbatim}
+and then we need to get the results on the development set to
+then construct the error-rate computations
+\begin{verbatim}
+out_results_fl=b_p_exp/b_p_dev_results.txt
+rm -f $out_results_fl
+for base_shifts in 1 3 5 7 9 ; do
+use_length=$(( 37 - $base_shifts + 1 ))
+tail_length=$(( (37 - $use_length)/2 ))
+for num_shifts in `seq 1 2 $base_shifts` ; do
+start_time=$(( tail_length - ( $num_shifts - 1)/2  ))
+for num_classes in 1 2 3 4 5 6 7 8 9 ; do
+echo $num_shifts $use_length $num_classes $start_time
+suff=${num_classes}c_${num_shifts}s_${use_length}l
+
+
+if [ -e b_p_exp/out_p_${suff}_templates.npy ] ; then
+echo $suff
+echo $suff `src/bernoullishift_binary_classify.py -c b_p_${suff}.config  --models b_p_exp/out_b_${suff}_templates.npy b_p_exp/out_p_${suff}_templates.npy --data data/b_dev.npy data/p_dev.npy --out b_p_exp/b_p_${suff}_results_ --bgds b_p_exp/out_b_${suff}_background.npy b_p_exp/out_p_${suff}_background.npy | awk '{ print $3 }'`  >> $out_results_fl
+fi
+
+done
+done
+done
+\end{verbatim}
+
+
+
+\begin{verbatim}
+src/results_to_graphics.py -i b_p_exp/b_p_dev_results.txt -o b_p_exp/b_p_dev_results --by_length
+\end{verbatim}
+
+
+
+\subsection{Parts Experiments}
+
+Another experiment to run is a patchwork of parts experiment.
+
+
+\subsection{Artificially Shifting the Data Around}
+
+The next question is whether the shifting helps
+in the case where the data is artificially shifted.
+In this experiment we generate random shifts of the data over
+a data window and then see what happens.
+
+\begin{verbatim}
+src/shift_data.py --in data/b.npy -out data/b_shifted.npy -c b_p_5c_5s.config
 \end{verbatim}
 
 \subsection{Bernoulli Shift Only EM}
