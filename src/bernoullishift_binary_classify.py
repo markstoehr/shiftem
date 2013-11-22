@@ -296,7 +296,7 @@ def main(args):
     error_rate = (num_data - np.diag(confusion_matrix).sum())/num_data
     print "error_rate = %f" % error_rate
 
-    np.save('%sconfustion_matrix.npy' % args.out,confusion_matrix)
+    np.save('%sconfusion_matrix.npy' % args.out,confusion_matrix)
 
 
 if __name__=="__main__":
