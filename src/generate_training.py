@@ -154,6 +154,18 @@ def main(args):
                                        i),
                         bbox_inches='tight')
         
+    if args.visualize_templates is not None:
+        for c_id, c_template in enumerate(true_templates):
+            plt.close('all')
+            plt.imshow(c_template.T,
+                       cmap='bone',
+                       interpolation='nearest',
+                       origin='lower',vmin=0,vmax=1)
+            plt.axis('off')
+            plt.savefig('%stemplates_%d.png' % (args.visualize_templates,
+                                                c_id),
+                        bbox_inches='tight')
+
 
 
     #import pdb; pdb.set_trace()
@@ -171,6 +183,10 @@ if __name__=="__main__":
     parser.add_argument("-c",type=str,default='main.config',help="config file: default is config")
     parser.add_argument('-v',action='store_true',help='include if you want a print out about the examples as they are processed')
     parser.add_argument('--visualize_data',
+                        type=str,
+                        default=None,
+                        help='default is None, in which case no visualization happens, otherwise a plot is saved to the path given as an argument')
+    parser.add_argument('--visualize_templates',
                         type=str,
                         default=None,
                         help='default is None, in which case no visualization happens, otherwise a plot is saved to the path given as an argument')
