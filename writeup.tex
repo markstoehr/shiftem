@@ -10,11 +10,12 @@
  {hyperref}
 \usepackage{breakurl}
 
+
 \makeatletter
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% User specified LaTeX commands.
 % ---- ETD Document Class and Useful Packages ---- %
 
-\usepackage{subfigure}\usepackage{epsfig}\usepackage{amsfonts}\usepackage{bigints}\usepackage{amsthm}\usepackage{algorithmic}\usepackage{algorithm}\usepackage{caption}\usepackage{fullpage}
+\usepackage{subfigure}\usepackage{epsfig}\usepackage{amsfonts}\usepackage{bigints}\usepackage{amsthm}\usepackage{algorithmic}\usepackage{algorithm}\usepackage{caption}\usepackage{fullpage}\usepackage{graphicx}\usepackage{array}
 
 %% Use these commands to set biographic information for the title page:
 \title{Switchboard Spoken Term Detection Experiments}
@@ -27,210 +28,308 @@
 \makeatother
 
 \begin{document}
-We run an experiment on shift invariant EM.
 
+\section{Introduction}
+
+We are attempting to build models of images where we assume that we
+have an object of fixed size surrounded by background. Concretely,
+we suppose that the image is modeled by a regularly sampled lattice
+$L$ (usually we will work in a $2d$ interval subset of $\mathbb{Z}^{2}$
+which is our model of the time-frequency plane). At each location
+$x\in L$ we observe a binary feature vector $\{0,1\}^{n}$ which
+will usually contain the edge information (in the case of edges $n=8$
+for four directions with two polarities each). A given image $X=\{X_{e}(x)\mid x\in L,e=1,\ldots,E\}$
+where $X_{e}(x)\in\{0,1\}$. Our data model is a probability array
+$(p_{e}(x))_{x\in L}$ where each $p_{e}(x)\in(0,1)$ is the probability
+of observing feature $e$ at location $x$. We parameterize the probability
+array as representing an object embedded in background so that probabilities
+$p_{e}(x)$ such that $x\in W\subset L$ are considered to be within
+the object window and $p_{e}(x)\not\in W$ are considered background
+edge probabilities. The distinction between object and background
+in this case is that the background is modeled as uniform across the
+spatial axes whereas the object is modeled using a template 
 \[
-X\in\{0,1\}^{N_{examples}\times N_{time}\times N_{features}}
+Q=(p_{e}(s))_{s\in W},e=1,\ldots,E.
 \]
- so that $X_{i}\in\{0,1\}^{N_{time}\times N_{features}}$ for $0\leq i\leq N_{examples}-1$
-and for each datum we have a latent variable $\tau_{i}$ which indicates
-the shifted starting point. We have a fixed window $W$ which is a
-set of time-feature pairs $(t,f)$ and we denote
+ We may write background probabilities as $p_{e,\text{bgd}}$. We
+model each feature as being conditionally independent given the location
+and object model. For a given observation $X$ we write the likelihood
+as
+\begin{eqnarray*}
+P(X) & = & \prod_{x\in W}\prod_{e=1}^{E}p_{e}(x)^{X_{e}(x)}(1-p_{e}(x))^{1-X_{e}(x)}\\
+ &  & \cdot\prod_{x\in L\setminus W}\prod_{e=1}^{E}p_{e,\text{bgd}}{}^{X_{e}(x)}(1-p_{e,\text{bgd}})^{1-X_{e}(x)}.
+\end{eqnarray*}
+
+
+
+\section{A Shiftable Model}
+
+In the real world the object is often not perfectly centered in our
+lattice so we want to develop methods that are robust to shifts. In
+this setting the observations are $(X,R)$ where $R$ is the reference
+location in $L$ indicating where the data have been shifted to. In
+this case the conditional likelihood may be written
+\begin{eqnarray*}
+P(X\mid r;Q,p_{\text{bgd}}) & = & \prod_{x\in W}\prod_{e=1}^{E}p_{e}(x)^{X_{e}(x+r)}(1-p_{e}(x))^{1-X_{e}(x+r)}\\
+ &  & \cdot\prod_{x\in L\setminus(W+r)}\prod_{e=1}^{E}p_{e,\text{bgd}}{}^{X_{e}(x)}(1-p_{e,\text{bgd}})^{1-X_{e}(x)}
+\end{eqnarray*}
+where $W+r=\{s+r\mid s\in W\}$ and we can see that we simply have
+shifted the template $Q$ by $r$ positions on the lattice $L$. The
+probability distribution over shifts is assumed to be $(\tau_{r})$
+so that the fully observed likelihood is
+\begin{eqnarray*}
+P(X,r) & = & \sum_{r}\tau_{r}P(X\mid r).
+\end{eqnarray*}
+ A basic extension of this model is to also allow for multiple classes
+so that we have a distinct template $Q_{c}$ for each class $c$,
+as well as a distribution $P(c)$ that gives the prior distribution
+over each class. If we assume that different classes have different
+shift distributions we can let $\pi(r,c)=P(r,c)$ parameterize the
+joint distribution over classes and shifts. The likelihood is then
 \[
-\{(t+\tau,f)\mid(t,f)\in W\}=\tau+W
+P(X,R,C;\{Q_{c}\},p_{\text{bgd}})=\sum_{r,c}\pi(r,c)P(X\mid r;Q_{c}).
 \]
- and we write the log likelihood conditioned on knowing the shift
-$\tau_{i}$ for example $i$ as
-\begin{align*}
-\mathbb{P}(X_{i}\mid\tau_{i}=\tau,\{p(t,f)\}_{(t,f)\in W},p_{bgd}) & =\sum_{(t,f)\in W}X_{i}(t+\tau,f)\log p(t,f)+(1-X_{i}(t+\tau,f))\log(1-p(t,f))\\
- & +\sum_{(t,f)\not\in W}X_{i}(t+\tau,f)\log p_{bgd}(f)+(1-X_{i}(t+\tau,f))\log(1-p_{bgd}(f))
-\end{align*}
-and then we can also have a distribution on $\tau$ which will be
-written $\eta_{i}(\tau)$ for the possible values of $\tau$. This
-means we can write the full likelihood as
-\[
-P(X_{i}\mid\tau_{i}=\tau,\{p(t,f)\}_{(t,f)\in W},p_{bgd})\eta(\tau)
-\]
-which means the posterior distribution on $\tau_{i}$ is
-\[
-P(\tau_{i}=\tau\mid X_{i},p,p_{bgd},\eta)=\frac{P(X_{i}\mid\tau_{i}=\tau,p,p_{bgd})\eta(\tau)}{\sum_{\tau'}P(X_{i}\mid\tau_{i}=\tau',p,p_{bgd})\eta(\tau')}
-\]
- and the maximization step to compute the new distribution is
-\[
-\eta^{(t+1)}(\tau)=\frac{1}{N_{examples}}\sum_{i=0}^{N_{examples}-1}P(\tau_{i}=\tau\mid X_{i},p^{(t)},p_{bgd}^{(t)},\eta^{(t)})
-\]
+ In the multi-class setting the probability array for $Q_{c}$ has
+elements $p_{e,c}(s)$ for locations $s\in L.$
+
+
+\section{EM model estimation}
+
+We now consider the problem of parameter estimation using the expectation-maximization
+algorithm. Let $\{(X^{(j)},V^{(j)})\}_{j=1}^{J}$ be our data we wish
+to estimate $Q$, $\pi$, and $p_{\text{bgd}}$ where $V^{(j)}=(R^{(j)},C^{(j)})$
+indicates the shift and class. We will denote by $v=(r,c)$ particular
+values for realizations of the random variable $V$. The EM-algorithm
+is an iterative algorithm where given estimates $Q^{(k)}$, $\pi^{(k)}$,
+$p_{\text{bgd}}^{(k)}$ we get estimates $Q^{(k+1)}$, $\pi^{(k+1)}$,
+$p_{\text{bgd}}^{(k+1)}$ consists in two-steps:
+\begin{enumerate}
+\item Estimation: compute the posterior distribution over the shifts and
+classes under the current set of parameters 
+\begin{equation}
+P(v\mid X^{(j)};Q^{(k)},\pi^{(k)},p_{\text{bgd}}^{(k)})=\frac{P(X^{(j)}\mid v;Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v)}{\sum_{v'}P(X^{(j)}\mid v';Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v')}\label{eq:e-step}
+\end{equation}
  
-\section{Test of the Algorithm on synthetic data}
+\item Maximization: estimate new sets of parameters $Q^{(k+1)},\pi^{(k+1)},p_{\text{bgd}}^{(k+1)}$
+by maximizing that expected log-likelihood using
+\begin{eqnarray*}
+\pi^{(k+1)}(v) & = & \frac{1}{J}\sum_{j}P(v\mid X^{(j)};Q^{(k)},\pi^{(k)},p_{\text{bgd}}^{(k)})\\
+p_{e,c}^{(k+1)}(s) & = & \frac{1}{J}\sum_{r,c}\sum_{j}P(r,c\mid X^{(j)};Q_{c}^{(k)},\pi^{(k)},p_{\text{bgd}}^{(k)})X_{e}^{(j)}(s+r),\; s\in W\\
+p_{e,\text{bgd}} & = & \frac{1}{J\cdot N_{\text{bgd}}}\sum_{r,c}\sum_{j}\sum_{s\in L\setminus(W+r)}P(v\mid X^{(j)};Q_{c}^{(k)},\pi^{(k)},p_{\text{bgd}}^{(k)})X_{e}^{(j)}(s)
+\end{eqnarray*}
+where $N_{\text{bgd}}$ is the number of background points $|L\setminus W|$.
+\end{enumerate}
+Initialization is done by going directly to step two, the maximization
+step, with randomly set $P(v\mid X^{(j)};Q^{(0)},\pi^{(0)},p_{\text{bgd}}^{(0)})$.
+The random assignment is that $P((0,c)\mid X^{(j)};Q^{(0)},\pi^{(0)},p_{\text{bgd}}^{(0)})$
+is one with probability $\frac{1}{N_{\text{class}}}$ and zero otherwise
+where $N_{\text{class}}$ is the number of classes and for $r\neq0$
+we set $P((r,c)\mid X^{(j)};Q^{(0)},\pi^{(0)},p_{\text{bgd}}^{(0)})$
+is zero. Convergence is assessed by whether the improvement in likelihood
+is greater than some threshold 
+\[
+\frac{l^{(k+1)}-l^{(k)}}{|l^{(k)}|}>\epsilon
+\]
+where $\epsilon$ is a tolerance parameter and $l^{(k)}$ is the data
+likelihood
+\[
+l^{(k)}=\sum_{j}\sum_{v}P(X^{(j)}\mid v;Q_{c}^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v).
+\]
+We know from the theory of EM that $l^{(k+1)}\geq l^{(k)}$.
 
-In this section we report the results of running the prior described algorithm
-on synthetic data.  We have a known template which has length \texttt{10} entries
-and it gives a product of Bernoullis distribution over the \texttt{10} entries
-each with \texttt{.95} mean probability.  The background probability is
-\texttt{.05} and holds for the rest of the vectors.
+In general the data is very high dimensional and it is more convenient
+to work in the log-likelihood domain rather than with raw likelihoods.
+In particular, \ref{eq:e-step} is numerically unstable to compute
+naively so we instead compute the E-step as follows:
+\begin{eqnarray*}
+P(v\mid X^{(j)};Q^{(k)},\pi^{(k)},p_{\text{bgd}}^{(k)}) & = & \frac{\exp\log\left(P(X^{(j)}\mid v;Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v)\right)}{\exp\log\sum_{v'}P(X^{(j)}\mid v';Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v')}\\
+ & = & \frac{\exp\left(\log\left(P(X^{(j)}\mid v;Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v)\right)-\alpha^{(j,k)}\right)}{\exp\left(-\alpha^{(j,k)}\right)\sum_{v'}P(X^{(j)}\mid v';Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v')}\\
+ & = & \frac{\exp\left(\log\left(P(X^{(j)}\mid v;Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v)\right)-\alpha^{(j,k)}\right)}{\sum_{v'}\exp\left(\log\left(P(X^{(j)}\mid v;Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v)\right)-\alpha^{(j,k)}\right)}
+\end{eqnarray*}
+where 
+\[
+\alpha^{(j,k)}=\max_{v}\log P(X^{(j)}\mid v;Q^{(k)},p_{\text{bgd}}^{(k)})\pi^{(k)}(v)
+\]
+and this ensures that the numerator is exactly one for some $v$ (and
+generally close to zero for all other $v'$), and that the denominator
+is always between one and the size of the shift space: $|\{v\}|$.
 
-The experimental setup is that we construct \texttt{100} training binary vectors
-each of length \texttt{15}.  For each training example $X_i$ a random start time
-$\tau_i$
-in $\{0,1,2,3,4\}$ is selected and then the entries $X_i(\tau_i:\tau_i+10)$ are
-modeled with the template probabilities and all other entries are modeled as background.
 
-\subsection{Experiment instructions}
+\section{Experimental Results}
 
-To run the experiment we use \texttt{src/generate\_training.py} with
-\texttt{main.config} having the parameters set as
+We illustrate the usefulness of the proposed model on synthetic and real datasets.  Full code
+for reproducing the experiments is available on the author's website.
+ 
+\subsection{Recovering Shifts in Synthetic Data}
+
+This experiment may be run from the root directory with the 
+command
 \begin{verbatim}
-cat << "EOF" > main.config
-[TRAINDATA]
-num_training=100
-template_length=20
-template_means=.9
-background_means=.2
-vector_length=40
-num_features=16
-num_shifts=9
-random_seed=0
-num_classes=2
-template_type='uniform'
-num_curves=4
-template_blur_sigma=.3
-
-[EMTRAINING]
-tolerance=1e-6
-num_shifts=9
-num_classes=2
-start_time=0
-template_length=20
-min_prob=.01
-EOF
+scripts/synthetic.sh .
 \end{verbatim}
-and this file is then fed into 
-\texttt{src/generate\_training.py} to give us
-\begin{verbatim}
-mkdir -p data
-src/generate_training.py -o data/generated -c main.config --visualize_data data/X
-\end{verbatim}
-which produces two files which correspond to the
-data
-\begin{verbatim}
-data/generated_start_times.npy
-data/generated_X.npy
-data/generated_true_templates.npy
-\end{verbatim}
-and it will also visualize the generated data by 
-generating pictures of all the data points to files of
-the form
-\begin{verbatim}
-data/X_${i}.png
-\end{verbatim}
-where \texttt{i} ranges over all the indices of the data generated
-which is determined from the config file \texttt{main.config}
-under \texttt{[TRAINDATA]} under the setting 
-\texttt{num\_training} which is 100 in this case so
-the indices will range from 0 to 99.
+in this experiment we generated random binary data using
+templates in \autoref{fig:synthetic_templates}.
+\begin{figure}[h]
+\centering
+\setlength\fboxsep{0pt}
+\setlength\fboxrule{0.5pt}
+\fbox{\includegraphics[scale=.25]{data/generated_templates_0.png}}
+\fbox{\includegraphics[scale=.25]{data/generated_templates_1.png}}
+\caption{Generated templates}
+\label{fig:synthetic_templates}
+\end{figure}
+and these may be compared to the templates inferred using the
+EM algorithm. In generating the data with these templates we also
+add random Bernoulli noise so that the data look like \autoref{fig:generated_data}
+\begin{figure}[h]
+\centering
+\setlength\fboxsep{0pt}
+\setlength\fboxrule{0.5pt}
+\fbox{\includegraphics[scale=.15]{data/X_0.png}}
+\fbox{\includegraphics[scale=.15]{data/X_1.png}}
+\fbox{\includegraphics[scale=.15]{data/X_2.png}}
+\fbox{\includegraphics[scale=.15]{data/X_3.png}}
+\fbox{\includegraphics[scale=.15]{data/X_4.png}}
+\fbox{\includegraphics[scale=.15]{data/X_5.png}}
+\caption{Generated Data}
+\label{fig:generated_data}
+\end{figure}
+ In the first case the number of allowed shifts
+was set to one, so that no shifting took place and we get these
+templates in \autoref{fig:no_shift_templates}
+\begin{figure}[h]
+\centering
+\setlength\fboxsep{0pt}
+\setlength\fboxrule{0.5pt}
+\fbox{\includegraphics[scale=.25]{shift_class_lengths_exp/out_no_shift_templates_0.png}}
+\fbox{\includegraphics[scale=.25]{shift_class_lengths_exp/out_no_shift_templates_1.png}}
+\caption{Templates inferred without shifts}
+\label{fig:no_shift_templates}
+\end{figure}
+which are considerably noisier than these templates in
+\autoref{fig:shift_spike_templates} which do not have
+\begin{figure}[h]
+\centering
+\setlength\fboxsep{0pt}
+\setlength\fboxrule{0.5pt}
+\fbox{\includegraphics[scale=.25]{shift_class_lengths_exp/out_shift_spike_templates_0.png}}
+\fbox{\includegraphics[scale=.25]{shift_class_lengths_exp/out_shift_spike_templates_1.png}}
+\caption{Templates inferred without shifts}
+\label{fig:shift_spike_templates}
+\end{figure}
+the smearing evident in \autoref{fig:no_shift_templates} since
+we allowed shifts during training.
 
-The file \texttt{data/generated\_true\_templates.npy}
-contains the true templates that generated the data. The parameters
-for them are all under the \texttt{[TRAINDATA]} section. 
-
-
-Having generated the training data we may then run
-the training algorithm
-\begin{verbatim}
-mkdir -p shift_only_exp
-src/bernoullishiftonly_em.py -c main.config -i data/generated_X.npy -o shift_only_exp/out_ --visualize_templates
-\end{verbatim}
-which outputs to the directory
-\texttt{shift\_only\_exp} the files
-\begin{verbatim}
-shift_only_exp/out_template.npy
-shift_only_exp/out_background.npy
-shift_only_exp/out_posteriors.npy
-shift_only_exp/out_shift_probs.npy
-\end{verbatim}
-
-\subsection{Multiple Templates}
-
-We now do our investigation with multiple templates.
-
-\subsubsection{Different Lengths}
-
-Another important experiment is to make the templates
-different lengths and see if the algorithm can find them. This 
-is run by 
-\begin{verbatim}
-cat << "EOF" > b_p_5c_9s.config
-[TRAINDATA]
-num_training=100
-template_lengths=(10,20)
-template_means=.9
-background_means=.2
-vector_length=40
-num_features=16
-num_shifts=9
-random_seed=0
-num_classes=2
-template_type='uniform'
-num_curves=4
-template_blur_sigma=.3
-
-[EMTRAINING]
-tolerance=1e-6
-num_shifts=9
-num_classes=5
-start_time=0
-template_length=29
-min_prob=.01
-class_shift_min_prob=.005
-random_seed=0
-
-EOF
-\end{verbatim}
-and we generate another that is going to be a baseline
-\begin{verbatim}
-cat << "EOF" > b_p_5c_9s.config
-[TRAINDATA]
-num_training=100
-template_lengths=(10,20)
-template_means=.9
-background_means=.2
-vector_length=40
-num_features=16
-num_shifts=9
-random_seed=0
-num_classes=2
-template_type='uniform'
-num_curves=4
-template_blur_sigma=.3
-
-[EMTRAINING]
-tolerance=1e-6
-num_shifts=9
-num_classes=5
-start_time=0
-template_length=29
-min_prob=.01
-class_shift_min_prob=.005
-random_seed=0
-
-EOF
-\end{verbatim}
-
-
-and then we generate the training data via
-\begin{verbatim}
-mkdir -p data
-src/generate_training.py -o data/generated -c main.config --visualize_data data/X
-\end{verbatim}
-and then we train with
-\begin{verbatim}
-mkdir -p shift_class_lengths_exp
-src/bernoullishiftonly_em.py -c main.config -i data/generated_X.npy -o shift_class_lengths_exp/out_
-\end{verbatim}
 
 
 \subsection{Experiment with p versus b}
 
+In this next experiment we compare a classification experiment
+with binary edge feaures computed over spectrograms of individuals
+saying \texttt{p} versus \texttt{b}.  The labels and recording
+came from the TIMIT databse.
+
+We find that there is good performance to be had in classification
+when using roughly six templates for each class. We first
+establish that longer or shorter templates do not make much 
+of a difference at the scale that we are working at, this is 
+important because it shows that the information in the boundary
+is not all that important for classification and can be
+coherently modeled as background.
+
+We can see the result in 
+\begin{table}[h]
+  \centering
+  \begin{tabular}{| l | c | c |  r |}
+    \hline
+     Frame Length & Shifts & Other Info & Error Rate \\ \hline\hline
+     31 & 1 &  & \input{exp/p_b_exp/b_p_1sh_6c_3st_31l.error_rate} \\
+     \hline
+     37 & 1 &  & \input{exp/p_b_exp/b_p_1sh_6c_0st_37l.error_rate} \\
+     \hline
+     35 & 3 &  & \input{exp/p_b_exp/b_p_3sh_6c_0st_35l.error_rate} \\
+     \hline
+     35 & 1 &  & \input{exp/p_b_exp/b_p_1sh_6c_1st_35l.error_rate} \\
+     \hline
+     31 & 7 &  & \input{exp/p_b_exp/b_p_7sh_6c_0st_31l.error_rate} \\
+     \hline
+     31 & 7 & \texttt{prev-init} & \input{exp/p_b_exp/b_p_7sh_6c_0st_31l_previnit.error_rate} \\
+     \hline
+     31 & 5  & \texttt{prev-init}  & \input{exp/p_b_exp/b_p_5sh_6c_1st_31l_previnit.error_rate} \\
+     \hline
+     31 & 5 & \texttt{prev-init},NI & \input{exp/p_b_exp/b_p_5sh_6c_1st_31l_previnit_ni.error_rate} \\
+     \hline
+     31 & 7 & NI & \input{exp/p_b_exp/b_p_7sh_6c_0st_31l_normal_independent.error_rate} \\
+     \hline
+     31 & 7 & ND & \input{exp/p_b_exp/b_p_7sh_6c_0st_31l_normal_dependent.error_rate} \\
+     \hline
+  \end{tabular}
+  \caption{Error rates for shorter and longer templates}
+  \label{tab:myfirsttable}
+\end{table}
+and so we see a non-linear relationship between shifts and error
+rates.  It seems that allowing enough shifts (and using a good 
+enough initialization) we can equal the performance of the model
+without the shift.  On the other hand, we do worse with
+badly initialized shifting models or models which do not
+allow enough shifts. A word on the codes: \texttt{prev-init} indicates
+that we use the model developed with no shifts as the initialization of the templates.  While `NI` indicates that we enforce a 
+normal-like distribution over shifts that is independent of class,
+so that, contrary to the description in the previous sections we
+have $\pi(r,c)=\tau(r)\eta(c) $ where $\tau$ is the normal-like
+distribution over shifts and $\eta$ is a distribution over classes.
+The estimation equations for $\tau$ and $\eta$ simplify involve
+marginalizing over classes and shifts, respectively. 
+
+We also visualize these templates
+and then we see them with shifts
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_1sh_6c_3st_31l_templates_0.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_1sh_6c_3st_31l_templates_1.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_1sh_6c_3st_31l_templates_2.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_1sh_6c_3st_31l_templates_3.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_1sh_6c_3st_31l_templates_4.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_1sh_6c_3st_31l_templates_5.png}
+
+\caption{Spectrogram visualization of the \texttt{p} templates with no shifts}
+\label{fig:underlying_1sh_6c_3st_31l_templates}
+\end{figure}
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_templates_0.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_templates_1.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_templates_2.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_templates_3.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_templates_4.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_templates_5.png}
+
+\caption{Spectrogram visualization of the \texttt{p} templates with seven shifts}
+\label{fig:underlying_7sh_6c_0st_31l_templates}
+\end{figure}
+
+and then we see what happens when we have a good initialization
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_previnit_templates_0.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_previnit_templates_1.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_previnit_templates_2.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_previnit_templates_3.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_previnit_templates_4.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/p_b_exp/p_underlying_7sh_6c_0st_31l_previnit_templates_5.png}
+
+\caption{Spectrogram visualization of the \texttt{p} templates with seven shifts and a good inititalization}
+\label{fig:underlying_7sh_6c_0st_31l_previnit_templates}
+\end{figure}
+
+
+
+
 \subsubsection{Single Template with Shift}
+
 Here we investigate what happens if we have a single class
 with shift.  We compare it to the case where the template is short
 \begin{verbatim}
@@ -621,6 +720,202 @@ done
 src/results_to_graphics.py -i b_p_exp/b_p_dev_results.txt -o b_p_exp/b_p_dev_results --by_length
 \end{verbatim}
 
+\subsection{Detection Performance}
+
+Another experiment is to see the performance when random shifts
+are introduced into the training and testing  data.
+We assemble some data extracted for phone classification.
+We presume to ahve the following files within a 
+\texttt{data/} directory
+\begin{verbatim}
+b_core_test_longer_examples.npy
+b_core_test_longer_examples_S.npy
+b_core_test_longer.frame_trans
+b_core_test_longer_info.npy
+b_dev_longer_examples.npy
+b_dev_longer_examples_S.npy
+b_dev_longer.frame_trans
+b_dev_longer_info.npy
+b_train_longer_examples.npy
+b_train_longer_examples_S.npy
+b_train_longer.frame_trans
+b_train_longer_info.npy
+p_core_test_longer_examples.npy
+p_core_test_longer_examples_S.npy
+p_core_test_longer.frame_trans
+p_core_test_longer_info.npy
+p_dev_longer_examples.npy
+p_dev_longer_examples_S.npy
+p_dev_longer.frame_trans
+p_dev_longer_info.npy
+p_train_longer_examples.npy
+p_train_longer_examples_S.npy
+p_train_longer.frame_trans
+p_train_longer_info.npy
+\end{verbatim}
+we take the central 37 frames and shift the window around by 5 in 
+both directions. To do this we run
+\begin{verbatim}
+local/extract_randomly_shifted_dataset.py
+\end{verbatim}
+and the main things we need here is an appropriate config
+file with a \texttt{TRAINDATA} section as follows
+this section will delineate the length of the template.  The logic
+is that we will do a variety of experiments where the data
+is shifted randomly and uniformly over an interval of some length
+(which will be denoted by \texttt{base\_shifts}). The length
+of the data extracted, \texttt{data\_length}, is
+one less than the \texttt{template\_length} plus the
+\texttt{base\_shifts}.  We have a \texttt{centered\_start}
+as the location of where the object begins if it is centered
+in the utterance segment.  So the model is that the data 
+$\mathcal{D}$ consists of data points $D_i\in\mathbb{R}^{T\times F}$
+where $F$ is the number of features and $T$ is the number of times.
+We assume a contiguous window 
+$$W=\{ (t,f) \mid T_{start}\leq t\leq T_{start}+L,\; 1\leq f\leq F \}$$
+and for a given shift $\tau$ we model as object
+$$ D_i(W+\tau) = \{ D_i(t+\tau,f) \mid (t,f)\in W\}$$
+and all other locations in $D_i$ as background.  In this experiment
+we are fixing the size of this window as \texttt{template\_length}
+and we consider different \texttt{start\_times} $T_{start}$
+which are computed to handle the fact that we use varying numbers
+of shifts. To get the start time we get a \texttt{centered\_start}
+which is where the window is if there is only a single shift
+considered so that $\tau=0$
+\begin{verbatim}
+mkdir -p conf
+
+template_length=37
+largest_shift=11
+data_length=$(( $template_length + $largest_shift -1 ))
+centered_start=$(( ($data_length - $template_length)/2 ))
+for num_shifts in `seq 1 2 $largest_shift` ; do
+start_time=$(( $centered_start - ( $num_shifts - 1)/2  ))
+for num_classes in 4 6 8 ; do
+echo $base_shifts num_shifts=$num_shifts template_length=$template_length num_classes=$num_classes start_time=${start_time}
+echo -e "[TRAINDATA]
+random_seed=0
+center_template_length=${template_length}
+num_shifts=${num_shifts}
+start_time=${start_time}
+
+[EMTRAINING]
+tolerance=1e-6
+num_shifts=${num_shifts}
+num_classes=${num_classes}
+start_time=${start_time}
+template_length=${template_length}
+min_prob=.01
+class_shift_min_prob=.005
+random_seed=0
+
+[INFERENCE]
+start_time=${start_time}
+num_shifts=${num_shifts}" > conf/b_p_${data_length}dl_${num_classes}c_${num_shifts}s_${template_length}l.config
+
+done
+done
+
+\end{verbatim}
+and this will cover the variety of different config files
+for this comparative experiment. The next step is to actually
+generate the data
+\begin{verbatim}
+template_length=37
+largest_shift=11
+data_length=$(( $template_length + $largest_shift -1 ))
+centered_start=$(( ($data_length - $template_length)/2 ))
+for num_shifts in `seq 1 2 $largest_shift` ; do
+for phn in p b ; do
+for dataset in train dev core_test ; do
+
+local/extract_randomly_shifted_dataset.py -c conf/b_p_${data_length}dl_6c_${num_shifts}s_${template_length}l.config -f data/${phn}_${dataset}_longer_examples.npy --out_data data/${phn}_${dataset}_${data_length}dl_${num_shifts}s_examples.npy  --out_relative_starts data/${phn}_${dataset}_${data_length}dl_${num_shifts}s_relative_starts.npy --out_start_times data/${phn}_${dataset}_${data_length}dl_${num_shifts}s_start_times.npy
+
+done
+done
+done
+\end{verbatim}
+and then we train all of the models using the various different
+config files
+\begin{verbatim}
+exp_dir=b_p_shifted_exp
+mkdir -p $exp_dir
+
+dataset=train
+template_length=37
+largest_shift=11
+data_length=$(( $template_length + $largest_shift -1 ))
+for data_shifts in 1 3 7 11 ; do
+echo data_shifts=$data_shifts
+for num_shifts in `seq 1 2 $largest_shift` ; do
+echo num_shifts=$num_shifts
+for num_classes in 4 6 8 ; do
+echo $num_shifts $use_length $num_classes
+suff=${data_length}dl_${num_classes}c_${num_shifts}s_${template_length}l
+echo $suff
+for phn in p b ; do
+echo $phn
+
+if [ ! -e $exp_dir/out_${phn}_${data_shifts}ds_${suff}_class_shift_probs.npy ] ; then
+echo Training $exp_dir/out_${phn}_${data_shifts}ds_${suff}_templates.npy
+src/bernoullishiftonly_em.py -c  conf/b_p_${suff}.config  -i data/${phn}_${dataset}_${data_length}dl_${data_shifts}s_examples.npy --out_templates $exp_dir/out_${phn}_${data_shifts}ds_${suff}_templates.npy --out_backgrounds $exp_dir/out_${phn}_${data_shifts}ds_${suff}_backgrounds.npy --out_posteriors $exp_dir/out_${phn}_${data_shifts}ds_${suff}_posteriors.npy --out_class_shift_probs $exp_dir/out_${phn}_${data_shifts}ds_${suff}_class_shift_probs.npy -o $exp_dir/out_${phn}_${data_shifts}ds_${suff}_ --visualize_templates
+fi 
+done
+done
+done
+done
+\end{verbatim}
+and then we can see the results on a shifted dataset
+\begin{verbatim}
+exp_dir=b_p_shifted_exp
+
+out_results_fl=$exp_dir/b_p_dev_results.txt
+rm -f $out_results_fl
+dataset=train
+template_length=37
+largest_shift=11
+data_length=$(( $template_length + $largest_shift -1 ))
+for model_data_shifts in 1 3 7 11 ; do
+echo model_data_shifts=$model_data_shifts
+for test_data_shifts in 1 3 7 11 ; do
+echo test_data_shifts=$test_data_shifts
+for num_shifts in `seq 1 2 $largest_shift` ; do
+# number of shifts is the number used in training the templaes
+echo num_shifts=$num_shifts
+for used_shifts in `seq 1 2 $largest_shift` ; do
+# used_shifts are the number used for inference given in the config file
+echo used_shifts=$used_shifts
+for num_classes in 4 6 8 ; do
+echo $num_shifts $use_length $num_classes
+suff=${data_length}dl_${num_classes}c_${num_shifts}s_${template_length}l
+use_suff=${data_length}dl_${num_classes}c_${used_shifts}s_${template_length}l
+echo $suff
+
+if [ -e $exp_dir/out_p_${model_data_shifts}ds_${suff}_templates.npy ] ; then
+echo Training $exp_dir/out_p_${data_shifts}ds_${suff}_templates.npy
+echo $exp_dir/out_b_${data_shifts}ds_${suff}_templates.npy
+echo ${test_data_shifts}tds_${model_data_shifts}mds_${used_shifts}us_$suff `src/bernoullishift_binary_classify.py \
+    -c conf/b_p_${use_suff}.config \
+    --models $exp_dir/out_b_${model_data_shifts}ds_${suff}_templates.npy \
+             $exp_dir/out_p_${model_data_shifts}ds_${suff}_templates.npy \
+    --data data/b_dev_${data_length}dl_${test_data_shifts}s_examples.npy \
+           data/p_dev_${data_length}dl_${test_data_shifts}s_examples.npy \
+    --out $exp_dir/b_p_${test_data_shifts}tds_${model_data_shifts}mds_${used_shifts}us_${suff}_results_ \
+    --bgds $exp_dir/out_b_${model_data_shifts}ds_${suff}_backgrounds.npy \
+           $exp_dir/out_p_${model_data_shifts}ds_${suff}_backgrounds.npy \
+    | awk '{ print $3 }'`  >> $out_results_fl
+
+fi
+done
+done
+done
+done
+done
+
+\end{verbatim}
+
+and we also make another config file that is for training
+unshifted models
 
 
 \subsection{Parts Experiments}
