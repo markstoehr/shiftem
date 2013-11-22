@@ -7,6 +7,41 @@ from template_speech_rec import configParserWrapper
 import template_speech_rec.get_train_data as gtrd
 import bernoullishiftonly_em_fast
 import matplotlib.pyplot as plt
+from scipy.stats import norm
+
+def cluster_underlying_data(Z,posteriors,start_time,template_length):
+    """
+    Parameters:
+    ===========
+    Z: 
+        Underlying data that edge features were computed from
+    posteriors:
+        Posteriors over the cluster identity for each datum
+    start_time:
+        useful for knowing when the template starts in time
+    template_length:
+        how much of the data to use for the template
+    """
+    # check if the data has more dimensions than just points, length and a feature length
+    if len(Z.shape) > 3:
+        Z_feature_shape = Z.shape[2:]
+        Z = Z.reshape(Z.shape[0],Z.shape[1],np.prod(Z_feature_shape))
+        reshape=True
+    else:
+        reshape=False
+
+    num_classes = posteriors.shape[1]
+    feature_length = Z.shape[2]
+    Z_templates = np.zeros((num_classes,template_length,feature_length),dtype=np.float64)
+    bernoullishiftonly_em_fast.compute_template_float(Z,posteriors,Z_templates,start_time)
+
+    if reshape:
+        Z = Z.reshape( *(  
+            (Z.shape[0],Z.shape[1])
+            + Z_feature_shape))
+    return Z_templates
+    
+    
 
 def prep_bgd_sums(X,background):
     """
@@ -75,7 +110,9 @@ def compute_likelihood_posteriors(X,class_shift_probs,
                                   log_template_inv_prob,
                                   bgd_sums,
                                   start_time,
-                                  min_prob):
+                                  min_prob,
+                                  class_shift_type='unconstrained',
+                                  min_shift_sigma=.8):
     """
     Parameters:
     ===========
@@ -188,16 +225,61 @@ def compute_likelihood_posteriors(X,class_shift_probs,
             strides=(8,0,0),
             shape=(num_data,num_classes,num_shifts)))
 
+    print class_shift_type
+    if class_shift_type=='normal_independent':
+        print 'normal_independent'
+        # get the class sums by marginalizing over shifts
+        class_probs = probs.sum(-1).sum(0)
+        class_probs /= class_probs.sum()
+        
+        shift_counts = probs.sum(0).sum(0)
+        idx = np.linspace(
+            - (num_shifts-1)/2,(num_shifts-1)/2,num_shifts)
+        shift_mean = np.dot(shift_counts, idx)/shift_counts.sum()
 
 
-    # class shift posteriors
-    max_class_shift_posteriors = posteriors.max(0)
+        shift_sigma_raw = np.sqrt(np.dot(shift_counts, (idx - shift_mean)**2)/shift_counts.sum())
 
-    class_shift_probs[:] = np.exp(np.clip(np.log(np.exp(posteriors - max_class_shift_posteriors).sum(0)) + max_class_shift_posteriors,
+        shift_sigma = max(shift_sigma_raw,        min_shift_sigma)
+        print shift_mean, shift_sigma, min_shift_sigma, shift_sigma_raw
+
+        shift_probs = norm.pdf(idx,scale=shift_sigma)
+        class_shift_probs[:] = np.outer(class_probs,shift_probs)
+
+    elif class_shift_type=='normal_dependent':
+        print 'normal_dependent'
+        # we estimate a mean and variance for each class
+        # separately
+        # get the class sums by marginalizing over shifts
+        idx = np.linspace(
+                - (num_shifts-1)/2,(num_shifts-1)/2,num_shifts)
+        
+        class_probs = probs.sum(-1).sum(0)
+        class_probs /= class_probs.sum()
+        
+        for class_id in xrange(num_classes):
+            shift_counts = probs[:,class_id].sum(0)
+            shift_counts /= shift_counts.sum()
+            shift_mean = np.dot(shift_counts, idx)
+            shift_sigma = max(
+                np.sqrt(np.dot(shift_counts, (idx - shift_mean)**2)
+                    ),
+                min_shift_sigma)
+            print shift_mean, shift_sigma
+            shift_probs = norm.pdf(idx,scale=shift_sigma)
+            class_shift_probs[class_id,:] = class_probs[class_id]*shift_probs
+        
+    else:
+        # class_shift_type=='unconstrained'
+        # class shift posteriors
+        max_class_shift_posteriors = posteriors.max(0)
+
+        class_shift_probs[:] = np.exp(np.clip(np.log(np.exp(posteriors - max_class_shift_posteriors).sum(0)) + max_class_shift_posteriors,
                                           np.log(min_prob),
                                           np.log(1-min_prob)))
-    # max_class_shift_log_prob = class_shift_log_probs.max()
+        # max_class_shift_log_prob = class_shift_log_probs.max()
     
+
     # class_shift_probs[:] = 1./(num_classes * num_shifts)
     class_shift_sum = class_shift_probs.sum()
     # likelihood_class_shift_sum = np.sum(np.log(class_shift_sum) + max_class_shift_posteriors)
@@ -243,8 +325,13 @@ def main(args):
                           num_shifts)) 
     probs = posteriors.copy()
 
-    for i, class_id in enumerate(init_class_ids):
-        posteriors[i,class_id,:] = 1./(num_shifts)
+    if config_d['EMTRAINING'].has_key('initialization') and config_d['EMTRAINING']['initialization']=='random_class_uniform_shift':
+        for i, class_id in enumerate(init_class_ids):
+            posteriors[i,class_id,:] = 1./(num_shifts)
+    else:
+        print 'shift spike at %d' % ((num_shifts-1)/2)
+        for i, class_id in enumerate(init_class_ids):
+            posteriors[i,class_id,(num_shifts-1)/2] = 1.
 
 
     
@@ -261,11 +348,11 @@ def main(args):
                          X.shape[2]))
 
 
-    bernoullishiftonly_em_fast.compute_template(X,posteriors,template,start_time)
-
-
-
-    template = np.clip(template,min_prob,1-min_prob)
+    if config_d['EMTRAINING']['initialization']=='template':
+        template[:] = np.load(args.init_templates)
+    else:
+        bernoullishiftonly_em_fast.compute_template(X,posteriors,template,start_time)
+        template = np.clip(template,min_prob,1-min_prob)
     
 
     background = np.zeros(X.shape[2])
@@ -287,17 +374,19 @@ def main(args):
 
 
 
-    all_likelihoods = ()
 
-    all_likelihoods += (compute_likelihood_posteriors(X,class_shift_probs,
+
+    likelihood = np.sum(compute_likelihood_posteriors(X,class_shift_probs,
                                                posteriors,
                                                probs,
                                                log_template_odds,
                                                log_template_inv_prob,
                                                bgd_sums,
-                                               start_time, class_shift_min_prob),)
+                                                      start_time, class_shift_min_prob,
+                                                      class_shift_type=config_d['EMTRAINING']['class_shift_type'],
+                                                      min_shift_sigma=config_d['EMTRAINING']['min_shift_sigma']))
 
-    likelihood = np.sum(all_likelihoods[-1])
+
     
 
 
@@ -338,13 +427,15 @@ def main(args):
         bgd_sums = prep_bgd_sums(X,background)
 
         
-        all_likelihoods += (compute_likelihood_posteriors(X,class_shift_probs,
+        new_likelihood = np.sum(compute_likelihood_posteriors(X,class_shift_probs,
                                                        posteriors,
                                                        probs,
                                                        log_template_odds,
                                                        log_template_inv_prob,
-                                                       bgd_sums,start_time, class_shift_min_prob),)
-        new_likelihood = np.sum(all_likelihoods[-1])
+                                                       bgd_sums,start_time, class_shift_min_prob,
+                                                      class_shift_type=config_d['EMTRAINING']['class_shift_type'],
+                                                      min_shift_sigma=config_d['EMTRAINING']['min_shift_sigma']))
+
         print (likelihood-new_likelihood)/likelihood, config_d['EMTRAINING']['tolerance']
         not_converged = ((likelihood-new_likelihood)/likelihood  > config_d['EMTRAINING']['tolerance'] or iteration < 10) and iteration < 1000
 
@@ -352,12 +443,23 @@ def main(args):
 
 
 
-
-    np.save('%stemplates.npy' % args.o, template)
-    np.save('%sbackground.npy' % args.o, background)
-    np.save('%sposteriors.npy' % args.o,posteriors)
-    np.save('%sclass_shift_probs.npy' % args.o,class_shift_probs)
-    np.save('%slikelihoods.npy' %args.o,np.array(all_likelihoods))
+    if args.out_templates is None:
+        np.save('%stemplates.npy' % args.o, template)
+    else:
+        np.save(args.out_templates, template)
+    if args.out_backgrounds is None:
+        np.save('%sbackground.npy' % args.o, background)
+    else:
+        np.save(args.out_backgrounds, background)
+    if args.out_posteriors is None:
+        np.save('%sposteriors.npy' % args.o,posteriors)
+    else:
+        np.save(args.out_posteriors, posteriors)
+    if args.out_class_shift_probs is None:
+        np.save('%sclass_shift_probs.npy' % args.o,class_shift_probs)
+    else:
+        np.save(args.out_class_shift_probs,
+                class_shift_probs)
     
     if args.visualize_templates:
         for c_id, c_template in enumerate(template):
@@ -365,7 +467,7 @@ def main(args):
             plt.imshow(c_template.T,
                        cmap='bone',
                        interpolation='nearest',
-                       origin='lower')
+                       origin='lower',vmin=0,vmax=1)
             plt.axis('off')
             plt.savefig('%stemplates_%d.png' % (args.o,
                                                 c_id),
@@ -377,6 +479,16 @@ if __name__=="__main__":
 """)
     parser.add_argument("-o",type=str,default=None,help="output file to save the position posteriors to"
                         )
+    parser.add_argument('--init_templates',type=str,default=None,
+                    help='input template file to initialize the templates to')
+    parser.add_argument('--out_templates',type=str,default=None,
+                        help='output file to save the templates to')
+    parser.add_argument('--out_backgrounds',type=str,default=None,
+                        help='output file to save the backgrounds to')
+    parser.add_argument('--out_posteriors',type=str,default=None,
+                        help='output file to save the posteriors to')
+    parser.add_argument('--out_class_shift_probs',type=str,default=None,
+                        help='output file to save the class_shift_probs to')
     parser.add_argument("-c",type=str,default='main.config',help="config file: default is config")
     parser.add_argument('-i',type=str,default='data/generated_X.npy',
                         help='data used for the EM')
