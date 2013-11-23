@@ -8,6 +8,7 @@ import template_speech_rec.get_train_data as gtrd
 import bernoullishiftonly_em_fast
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from mpl_toolkits.axes_grid1 import ImageGrid
 
 def cluster_underlying_data(Z,posteriors,start_time,template_length):
     """
@@ -135,6 +136,7 @@ def compute_likelihood_posteriors(X,class_shift_probs,
     class_shift_log_probs = np.log(class_shift_probs)
     probs[:] = 0
     posteriors[:] = 0
+
 
 
     bernoullishiftonly_em_fast.compute_template_loglikelihood(
@@ -316,6 +318,10 @@ def main(args):
     class_shift_min_prob = config_d['EMTRAINING']['class_shift_min_prob']
     X = np.load(args.i).astype(np.uint8)
     num_data = X.shape[0]
+    X_shape = X.shape[2:]
+    if len(X_shape) > 1:
+        X = X.reshape(X.shape[0],X.shape[1],
+                      np.prod(X_shape))
     # just a random initialization
     init_class_ids = np.random.randint(num_classes,size=num_data)
 
@@ -357,6 +363,8 @@ def main(args):
 
     background = np.zeros(X.shape[2])
 
+
+    
     bernoullishiftonly_em_fast.compute_background(X,
                                                     posteriors,
                                                     background,
@@ -463,14 +471,23 @@ def main(args):
     
     if args.visualize_templates:
         for c_id, c_template in enumerate(template):
-            plt.close('all')
-            plt.imshow(c_template.T,
-                       cmap='bone',
+            cur_template = c_template.reshape(
+
+                *(
+                    (c_template.shape[0],)
+                    + X_shape ))
+
+
+
+            for i in xrange(cur_template.shape[-1]):
+                plt.close('all')
+                plt.imshow(cur_template[:,:,i].T,
+                       cmap='hot',
                        interpolation='nearest',
                        origin='lower',vmin=0,vmax=1)
-            plt.axis('off')
-            plt.savefig('%stemplates_%d.png' % (args.o,
-                                                c_id),
+                plt.axis('off')
+                plt.savefig('%stemplates_%d_%d.png' % (args.o,
+                                                       c_id,i),
                         bbox_inches='tight')
 
 
