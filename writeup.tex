@@ -214,7 +214,7 @@ which are considerably noisier than these templates in
 \setlength\fboxrule{0.5pt}
 \fbox{\includegraphics[scale=.25]{shift_class_lengths_exp/out_shift_spike_templates_0.png}}
 \fbox{\includegraphics[scale=.25]{shift_class_lengths_exp/out_shift_spike_templates_1.png}}
-\caption{Templates inferred without shifts}
+\caption{Templates inferred with shifts}
 \label{fig:shift_spike_templates}
 \end{figure}
 the smearing evident in \autoref{fig:no_shift_templates} since
@@ -325,6 +325,93 @@ and then we see what happens when we have a good initialization
 \label{fig:underlying_7sh_6c_0st_31l_previnit_templates}
 \end{figure}
 
+
+\section{\texttt{let} Experiment}
+
+In this experiment we are working on detecting individuals saying
+\texttt{let} in switchboard this is because it is not so frequent
+that it is guaranteed to be in every sentence and its short enough
+that an inflexible template should be able to handle the length variation (since 90\% of the examples are shorter than quarter of a second) . However, we do not have good
+transcriptions since the alignment was done automatically
+using a forced aligner.  The first parameter that needs to be
+set is the template length, since all of our algorithms
+need a length  as an input.  The length parameter is essentially
+an upperbound on the length of the model. From the histogram
+in \autoref{fig:train_let_lengths_hist}
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/train_let_lengths_hist.png}
+\caption{Histogram over the lengths of \texttt{let} in swbd}
+\label{fig:train_let_lengths_hist}
+\end{figure}
+we see that \texttt{.4} seconds will cover most of the instances.
+We can include a longer template if need be.  We now examine
+the templates learned when we extract the data and train templates
+over the specified length.  There are notably two strategies 
+to extracting a data window of fixed length: the first is to extract
+the window from the hypothesized beginning and the second
+is to extract the window from the hypothesized middle.  We opt
+for the latter type and will allow shifts so we extracting a .5 second window around the middle of the data.
+To get a sense of the different templates that are learned over
+\texttt{let}
+here we can see a 4-class visualization of templates
+trained with one shift in \autoref{fig:let_underlying_viz_1sh_4c_3st_54l}, 
+three shifts in \autoref{fig:let_underlying_viz_3sh_4c_0st_58l_prev_init}, 
+and then seven shifts in \autoref{fig:let_underlying_viz_7sh_4c_0st_54l_prev_init}:
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_underlying_templates_0.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_underlying_templates_1.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_underlying_templates_2.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_underlying_templates_3.png}
+\caption{Visualization of let-clusters with 1 shift}
+\label{fig:let_underlying_viz_1sh_4c_3st_54l}
+\end{figure}
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_3sh_4c_0st_58l_prev_init_underlying_templates_0.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_3sh_4c_0st_58l_prev_init_underlying_templates_1.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_3sh_4c_0st_58l_prev_init_underlying_templates_2.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_3sh_4c_0st_58l_prev_init_underlying_templates_3.png}
+\caption{Visualization of let-clusters with 3 shifts}
+\label{fig:let_underlying_viz_3sh_4c_0st_58l_prev_init}
+\end{figure}
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_underlying_templates_0.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_underlying_templates_1.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_underlying_templates_2.png}
+\includegraphics[scale=.5]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_underlying_templates_3.png}
+\caption{Visualization of let-clusters with 7 shifts}
+\label{fig:let_underlying_viz_7sh_4c_0st_54l_prev_init}
+\end{figure}
+and then looking at the edge templates with seven shifts (\autoref{fig:let_7sh_4c_0st_54l_prev_init_templates}) compared with 1 shift (\autoref{fig:let_1sh_4c_3st_54l_templates})
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_templates_0_0.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_templates_0_1.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_templates_0_2.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_templates_0_3.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_templates_0_4.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_templates_0_5.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_templates_0_6.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_7sh_4c_0st_54l_prev_init_templates_0_7.png}
+\caption{Visualization of let-edge templates with 7 shifts}
+\label{fig:let_7sh_4c_0st_54l_prev_init_templates}
+\end{figure}
+\begin{figure}[h]
+\centering
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_templates_0_0.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_templates_0_1.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_templates_0_2.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_templates_0_3.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_templates_0_4.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_templates_0_5.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_templates_0_6.png}
+\includegraphics[scale=.25]{/home/mark/Research/Spoken_Term_Detection/shiftem/exp/let_exp/let_1sh_4c_3st_54l_templates_0_7.png}
+\caption{Visualization of let-edge templates with 1 shift}
+\label{fig:let_1sh_4c_3st_54l_templates}
+\end{figure}
 
 
 
