@@ -37,7 +37,7 @@ template_length=${template_length}
 min_prob=.01
 class_shift_min_prob=.005
 random_seed=0
-initialization='random_class_uniform_shift'
+initialization='random_class_shift_spike'
 class_shift_type='unconstrained'
 min_shift_sigma=.8
 
